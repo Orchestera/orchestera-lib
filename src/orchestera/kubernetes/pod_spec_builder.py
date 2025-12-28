@@ -85,6 +85,11 @@ def build_driver_pod_spec(
         metadata=V1ObjectMeta(
             name=application_name,
             namespace=namespace,
+            labels={
+                "application_name": application_name,
+                "namespace": namespace,
+                "spark-role": "driver",
+            },
         ),
         spec=pod_spec,
     )
@@ -97,6 +102,7 @@ def build_executor_pod_spec(
     application_name: str,
     in_cluster: bool,
     namespace: str,
+    driver_deterministic_pod_id: str,
     secrets: Optional[List[str]] = None,
 ) -> dict:
     """
@@ -109,6 +115,8 @@ def build_executor_pod_spec(
             "labels": {
                 "application_name": application_name,
                 "namespace": namespace,
+                "spark-role": "executor",
+                "driver_deterministic_pod_id": driver_deterministic_pod_id,
             },
         },
         "spec": {

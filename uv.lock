@@ -309,6 +309,8 @@ dependencies = [
     { name = "kubernetes" },
     { name = "pyspark" },
     { name = "pyyaml" },
+    { name = "tenacity" },
+    { name = "watch" },
 ]
 
 [package.optional-dependencies]
@@ -327,6 +329,8 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pyspark", specifier = "==3.5.4" },
     { name = "pyyaml", specifier = "==6.0.2" },
+    { name = "tenacity", specifier = "==9.1.2" },
+    { name = "watch", specifier = "==0.2.7" },
 ]
 provides-extras = ["dev"]
 
@@ -527,6 +531,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tenacity"
+version = "9.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036, upload-time = "2025-04-02T08:25:09.966Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248, upload-time = "2025-04-02T08:25:07.678Z" },
+]
+
+[[package]]
 name = "tomli"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -607,6 +620,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/20/28/e6f1a6f655d620846
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/0c/c05523fa3181fdf0c9c52a6ba91a23fbf3246cc095f26f6516f9c60e6771/virtualenv-20.35.4-py3-none-any.whl", hash = "sha256:c21c9cede36c9753eeade68ba7d523529f228a403463376cf821eaae2b650f1b", size = 6005095, upload-time = "2025-10-29T06:57:37.598Z" },
 ]
+
+[[package]]
+name = "watch"
+version = "0.2.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/30/05e13da086995c5d9fde762ff3cb742884aa76fb6167eda9a73a876aee8b/watch-0.2.7.tar.gz", hash = "sha256:d51f3648091c031e08d0cf0f3177da884078f25538a9d8dc568693ab5ac2dee0", size = 6441, upload-time = "2018-10-02T21:28:53.915Z" }
 
 [[package]]
 name = "websocket-client"
