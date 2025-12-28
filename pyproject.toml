@@ -1,0 +1,22 @@
+[project]
+name = "orchestera-lib"
+version = "0.1.0"
+description = "Orchestera Library"
+readme = "README.md"
+requires-python = ">=3.10.14"
+dependencies = [
+    "PyYAML==6.0.2",
+    "kubernetes==33.1.0",
+    "pyspark==3.5.4",
+    "click==8.1.8",
+]
+
+[project.optional-dependencies]
+dev = ["black", "isort"]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+known_first_party = ["orchestera"]
