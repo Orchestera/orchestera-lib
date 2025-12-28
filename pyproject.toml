@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "isort"]
+dev = ["black", "isort", "pre-commit"]
 
 [tool.black]
 line-length = 88
