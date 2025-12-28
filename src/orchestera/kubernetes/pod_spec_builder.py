@@ -3,17 +3,18 @@ Utility functions to manage Kubernetes pod specifications for Spark applications
 """
 
 from typing import List, Optional
+
 from kubernetes.client import (
     V1Container,
+    V1EnvFromSource,
+    V1EnvVar,
     V1LocalObjectReference,
     V1ObjectMeta,
     V1Pod,
     V1PodSpec,
     V1ResourceRequirements,
-    V1Toleration,
-    V1EnvVar,
-    V1EnvFromSource,
     V1SecretEnvSource,
+    V1Toleration,
 )
 
 
@@ -95,6 +96,7 @@ def build_executor_pod_spec(
     *,
     application_name: str,
     in_cluster: bool,
+    namespace: str,
     secrets: Optional[List[str]] = None,
 ) -> dict:
     """
@@ -106,6 +108,7 @@ def build_executor_pod_spec(
         "metadata": {
             "labels": {
                 "application_name": application_name,
+                "namespace": namespace,
             },
         },
         "spec": {

@@ -1,11 +1,12 @@
-import os
 import logging
+import os
 import socket
 import tempfile
-import yaml
 
+import yaml
 from kubernetes import config as kubernetes_config
 from pyspark.sql import SparkSession
+
 from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ class OrchesteraSparkSession:
             .config("spark.executor.cores", self.executor_cores)
             .config(
                 "spark.kubernetes.executor.podTemplateFile",
-                self._create_executor_pod_template_file(in_cluster=True),
+                self._create_executor_pod_template_file(
+                    driver_namespace, in_cluster=True
+                ),
             )
             .config(
                 "spark.kubernetes.container.image.pullSecrets", "docker-registry-creds"
@@ -96,12 +99,19 @@ class OrchesteraSparkSession:
             self.spark.stop()
             self.spark = None
 
-    def _create_executor_pod_template_file(self, in_cluster=True):
+    def _create_executor_pod_template_file(
+        self,
+        driver_namespace,
+        in_cluster=True,
+    ):
         pod_spec_dict = build_executor_pod_spec(
             in_cluster=in_cluster,
-            secrets=os.environ.get("ORCH_SPARK_K8S_ENVS_LIST").split(",")
-            if os.environ.get("ORCH_SPARK_K8S_ENVS_LIST")
-            else None,
+            namespace=driver_namespace,
+            secrets=(
+                os.environ.get("ORCH_SPARK_K8S_ENVS_LIST").split(",")
+                if os.environ.get("ORCH_SPARK_K8S_ENVS_LIST")
+                else None
+            ),
         )
 
         with tempfile.NamedTemporaryFile(
