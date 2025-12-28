@@ -69,7 +69,6 @@ class BaseEntryPoint(ABC):
 
     @classmethod
     def parse_cli_args(cls):
-
         def cli_entrypoint(**kwargs):
             return kwargs
 
