@@ -1,7 +1,7 @@
 from orchestera.entrypoints.base_entrypoint import BaseEntryPoint, StringArg
 
 
-class SparkeumEntryPoint(BaseEntryPoint):
+class SparklithEntryPoint(BaseEntryPoint):
     """Implements SparkeumEntryPoint"""
 
     application_name = StringArg(required=True, tooltip="Name of the application")
