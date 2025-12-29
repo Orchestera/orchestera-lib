@@ -11,6 +11,8 @@ from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
 
 logger = logging.getLogger(__name__)
 
+EXECUTOR_IMAGE = "853027285987.dkr.ecr.us-east-1.amazonaws.com/hello-world:latest"
+
 
 def get_kubernetes_host_addr():
     """Get kubernetes host adddress"""
@@ -53,17 +55,13 @@ class OrchesteraSparkSession:
                 "ORCH_SPARK_K8S_NAMESPACE environment variable must be set"
             )
 
-        executor_image = os.environ.get("SPARK_EXECUTOR_IMAGE")
-        if not executor_image:
-            raise ValueError("SPARK_EXECUTOR_IMAGE environment variable must be set")
-
         logger.info("Master url is set to %s", master_url)
         logger.info("spark.driver.host is set to %s", driver_host)
 
         builder = (
             SparkSession.builder.appName("SparkK8sApp")
             .master(master_url)
-            .config("spark.kubernetes.executor.container.image", executor_image)
+            .config("spark.kubernetes.executor.container.image", EXECUTOR_IMAGE)
             .config("spark.driver.host", driver_host)
             .config("spark.kubernetes.namespace", driver_namespace)
             .config("spark.executor.instances", self.executor_instances)
