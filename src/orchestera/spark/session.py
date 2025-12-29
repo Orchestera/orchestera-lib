@@ -33,7 +33,7 @@ class OrchesteraSparkSession:
         additional_spark_conf=None,
     ) -> None:
         self.app_name = app_name
-        self.exectuor_instances = executor_instances
+        self.executor_instances = executor_instances
         self.executor_cores = executor_cores
         self.executor_memory = executor_memory
         self.spark_jars_packages = spark_jars_packages
