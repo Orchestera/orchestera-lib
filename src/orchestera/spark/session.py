@@ -37,7 +37,7 @@ class OrchesteraSparkSession:
         self.executor_cores = executor_cores
         self.executor_memory = executor_memory
         self.spark_jars_packages = spark_jars_packages
-        self.addtional_spark_conf = additional_spark_conf
+        self.additional_spark_conf = additional_spark_conf
 
     def __enter__(self):
         logging.info("Loading in-cluster config")
@@ -103,6 +103,7 @@ class OrchesteraSparkSession:
         in_cluster=True,
     ):
         pod_spec_dict = build_executor_pod_spec(
+            application_name=self.app_name,
             in_cluster=in_cluster,
             namespace=driver_namespace,
             secrets=(

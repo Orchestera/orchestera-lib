@@ -102,7 +102,6 @@ def build_executor_pod_spec(
     application_name: str,
     in_cluster: bool,
     namespace: str,
-    driver_deterministic_pod_id: str,
     secrets: Optional[List[str]] = None,
 ) -> dict:
     """
@@ -116,7 +115,6 @@ def build_executor_pod_spec(
                 "application_name": application_name,
                 "namespace": namespace,
                 "spark-role": "executor",
-                "driver_deterministic_pod_id": driver_deterministic_pod_id,
             },
         },
         "spec": {
