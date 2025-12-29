@@ -3,26 +3,20 @@ import uuid
 from functools import cached_property
 
 import click
-from kubernetes import client
+from kubernetes import config
 from kubernetes.client import CoreV1Api, V1Pod
 
-from src.orchestera.kubernetes.pod_manager import DefaultPodManager
-from src.orchestera.kubernetes.pod_spec_builder import build_driver_pod_spec
+from orchestera.kubernetes.pod_manager import DefaultPodManager
+from orchestera.kubernetes.pod_spec_builder import build_driver_pod_spec
 
 logger = logging.getLogger(__name__)
 
 
 class SparklithKubernetesClientConfiguration:
 
-    def __init__(self, api_server_url, verify_ssl=True):
-        configuration = client.Configuration()
-        configuration.host = api_server_url
-        configuration.verify_ssl = verify_ssl
-
-        self._configuration = configuration
-
-    def get_configuration(self):
-        return self._configuration
+    def __init__(self, context=None):
+        # Load from default kubeconfig (~/.kube/config)
+        config.load_kube_config(context=context)
 
 
 class SparklithKubernetesClient:
@@ -35,14 +29,9 @@ class SparklithKubernetesClient:
 
     @cached_property
     def k8s_client(self):
-        _client = CoreV1Api(
-            client.ApiClient(
-                self.configuration.get_configuration(),
-            )
-        )
-        return _client
+        return CoreV1Api()
 
-    def build_pod_request_obj(entrypoint, context) -> V1Pod:
+    def build_pod_request_obj(self, entrypoint, context) -> V1Pod:
 
         user_labels = context.get("labels", {})
         namespace = context.get("namespace")
@@ -55,7 +44,6 @@ class SparklithKubernetesClient:
             memory_limit=context["memory_limit"],
             cpu_request=context["cpu_request"],
             cpu_limit=context["cpu_limit"],
-            is_driver=True,
             in_cluster=True,
             namespace=namespace,
             secrets=secret_names,
@@ -188,9 +176,9 @@ def cli():
 
 @cli.command()
 @click.option(
-    "--api-server-url",
-    required=True,
-    help="Kubernetes API server URL",
+    "--kube-context",
+    default=None,
+    help="Kubernetes context to use from kubeconfig",
 )
 @click.option(
     "--pull-secrets-from",
@@ -238,7 +226,7 @@ def cli():
     help="Python classpath for the Spark application (e.g., example.spark.application.SparkK8sHelloWorld)",
 )
 def run(
-    api_server_url,
+    kube_context,
     pull_secrets_from,
     application_name,
     image,
@@ -249,17 +237,14 @@ def run(
     namespace,
     classpath,
 ):
-    """Sync resources."""
+    """Run a Spark application on Kubernetes using kubeconfig."""
     click.echo("Running...")
 
     secrets = pull_secrets_from.split(",") if pull_secrets_from else None
 
-    config = SparklithKubernetesClientConfiguration(
-        api_server_url=api_server_url,
-        verify_ssl=False,
-    )
+    k8s_config = SparklithKubernetesClientConfiguration(context=kube_context)
 
-    client = SparklithKubernetesClient(config)
+    sparklith_client = SparklithKubernetesClient(k8s_config)
 
     context = {
         "application_name": application_name,
@@ -272,7 +257,7 @@ def run(
         "secrets": secrets,
     }
 
-    client.execute(
+    sparklith_client.execute(
         entrypoint=[
             "python3",
             "-m",
