@@ -9,6 +9,9 @@ from kubernetes.client import CoreV1Api, V1Pod
 from orchestera.kubernetes.pod_manager import DefaultPodManager
 from orchestera.kubernetes.pod_spec_builder import build_driver_pod_spec
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
