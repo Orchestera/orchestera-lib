@@ -73,9 +73,6 @@ class OrchesteraSparkSession:
                     driver_namespace, in_cluster=True
                 ),
             )
-            .config(
-                "spark.kubernetes.container.image.pullSecrets", "docker-registry-creds"
-            )  # this should point to the same value as what's configured in the respective namespace
         )
 
         if self.spark_jars_packages:
