@@ -23,9 +23,7 @@ def build_driver_pod_spec(
     application_name,
     image,
     memory_request,
-    memory_limit,
     cpu_request,
-    cpu_limit,
     in_cluster,
     namespace,
     secrets: Optional[List[str]] = None,
@@ -43,7 +41,6 @@ def build_driver_pod_spec(
                 command=["python3", "app/src/sparkeum/spark/application.py"],
                 resources=V1ResourceRequirements(
                     requests={"memory": memory_request, "cpu": cpu_request},
-                    limits={"memory": memory_limit, "cpu": cpu_limit},
                 ),
                 env=[
                     V1EnvVar(name="ORCH_SPARK_K8S_NAMESPACE", value=namespace),

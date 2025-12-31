@@ -44,9 +44,7 @@ class SparklithKubernetesClient:
             application_name=context["application_name"],
             image=context["image"],
             memory_request=context["memory_request"],
-            memory_limit=context["memory_limit"],
             cpu_request=context["cpu_request"],
-            cpu_limit=context["cpu_limit"],
             in_cluster=True,
             namespace=namespace,
             secrets=secret_names,
@@ -204,19 +202,9 @@ def cli():
     help="Memory request for the Spark application",
 )
 @click.option(
-    "--memory-limit",
-    default="2G",
-    help="Memory limit for the Spark application",
-)
-@click.option(
     "--cpu-request",
     default="1",
     help="CPU request for the Spark application",
-)
-@click.option(
-    "--cpu-limit",
-    default="2",
-    help="CPU limit for the Spark application",
 )
 @click.option(
     "--namespace",
@@ -234,9 +222,7 @@ def run(
     application_name,
     image,
     memory_request,
-    memory_limit,
     cpu_request,
-    cpu_limit,
     namespace,
     classpath,
 ):
@@ -253,9 +239,7 @@ def run(
         "application_name": application_name,
         "image": image,
         "memory_request": memory_request,
-        "memory_limit": memory_limit,
         "cpu_request": cpu_request,
-        "cpu_limit": cpu_limit,
         "namespace": namespace,
         "secrets": secrets,
     }
