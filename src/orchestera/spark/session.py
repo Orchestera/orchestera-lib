@@ -11,7 +11,7 @@ from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
 
 logger = logging.getLogger(__name__)
 
-EXECUTOR_IMAGE = "853027285987.dkr.ecr.us-east-1.amazonaws.com/hello-world:latest"
+EXECUTOR_IMAGE = "ghcr.io/orchestera/docker-images/spark:3.5.6"
 
 
 def get_kubernetes_host_addr():
@@ -37,7 +37,8 @@ class OrchesteraSparkSession:
         self.executor_cores = executor_cores
         self.executor_memory = executor_memory
         self.spark_jars_packages = spark_jars_packages
-        self.additional_spark_conf = additional_spark_conf
+        self.additional_spark_conf = additional_spark_conf or {}
+        self.spark = None
 
     def __enter__(self):
         logging.info("Loading in-cluster config")
@@ -73,17 +74,16 @@ class OrchesteraSparkSession:
                     driver_namespace, in_cluster=True
                 ),
             )
-            .config(
-                "spark.kubernetes.container.image.pullSecrets", "docker-registry-creds"
-            )  # this should point to the same value as what's configured in the respective namespace
         )
+
+        default_spark_conf = self._default_spark_confs()
+        default_spark_conf.update(self.additional_spark_conf)
+
+        for key, value in default_spark_conf.items():
+            builder = builder.config(key, value)
 
         if self.spark_jars_packages:
             builder = builder.config("spark.jars.packages", self.spark_jars_packages)
-
-        if self.additional_spark_conf:
-            for key, value in self.additional_spark_conf.items():
-                builder = builder.config(key, value)
 
         self.spark = builder.getOrCreate()
 
@@ -121,3 +121,32 @@ class OrchesteraSparkSession:
 
         logger.info("Executor pod spec written to temp file %s", temp_file_path)
         return temp_file_path
+
+    def _default_spark_confs(self):
+        return {
+            "spark.default.parallelism": 4,
+            # Explicitly add the JARs to executor classpath
+            "spark.executor.extraClassPath": "/opt/spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.746.jar",
+            # Allow EKS Pod Identity agent FULL_URI host for AWS SDK v1
+            "spark.driver.extraJavaOptions": "-Dcom.amazonaws.sdk.ecsFullUriAllowedHosts=169.254.170.23,localhost,127.0.0.1",
+            "spark.executor.extraJavaOptions": "-Dcom.amazonaws.sdk.ecsFullUriAllowedHosts=169.254.170.23,localhost,127.0.0.1",
+            # Service account for pod identity
+            "spark.kubernetes.authenticate.driver.serviceAccountName": "spark",
+            "spark.kubernetes.authenticate.executor.serviceAccountName": "spark",
+            # Hadoop AWS filesystem
+            "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
+            # Use EKS Pod Identity container credentials
+            "spark.hadoop.fs.s3a.aws.credentials.provider": (
+                "com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper"
+            ),
+            # Prevent IMDS from being used as a fallback so node instance profile doesn't override Pod Identity
+            "spark.executorEnv.AWS_EC2_METADATA_DISABLED": "true",
+            "spark.kubernetes.driverEnv.AWS_EC2_METADATA_DISABLED": "true",
+            # Optional: faster committers for Spark
+            "spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version": "2",
+            "spark.hadoop.fs.s3a.committer.name": "directory",
+            "spark.hadoop.fs.s3a.committer.magic.enabled": "false",
+            # Set HOME to writable directory for executors
+            "spark.executorEnv.HOME": "/tmp",
+            "spark.executorEnv.PYSPARK_PYTHON": "python3",
+        }
