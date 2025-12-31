@@ -38,6 +38,7 @@ class OrchesteraSparkSession:
         self.executor_memory = executor_memory
         self.spark_jars_packages = spark_jars_packages
         self.additional_spark_conf = additional_spark_conf or {}
+        self.spark = None
 
     def __enter__(self):
         logging.info("Loading in-cluster config")
@@ -83,6 +84,8 @@ class OrchesteraSparkSession:
 
         if self.spark_jars_packages:
             builder = builder.config("spark.jars.packages", self.spark_jars_packages)
+
+        self.spark = builder.getOrCreate()
 
         logger.info("Successfully created spark session")
 
