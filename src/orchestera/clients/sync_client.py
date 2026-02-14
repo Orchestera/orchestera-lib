@@ -164,6 +164,7 @@ class SparklithKubernetesClient:
             remote_pod = self.await_pod_completion(pod)
             # Evaluate container exit codes and pod phase; raise if any non-zero
             self._raise_on_nonzero_exit(remote_pod)
+            logger.info("Pipeline run completed successfully")
         finally:
             # Always attempt cleanup
             self.cleanup(remote_pod or pod)
