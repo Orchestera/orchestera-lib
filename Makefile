@@ -1,4 +1,4 @@
-.PHONY: install install-dev sync lint format pre-commit clean
+.PHONY: install install-dev sync sync-dev lint format pre-commit clean
 
 # Install production dependencies
 install:
@@ -10,6 +10,9 @@ install-dev:
 
 # Sync dependencies (alias for install)
 sync: install
+
+# Sync with dev dependencies (alias for install-dev)
+sync-dev: install-dev
 
 # Run pre-commit on all files
 pre-commit:
