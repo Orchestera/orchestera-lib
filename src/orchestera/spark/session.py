@@ -4,6 +4,7 @@ import socket
 import tempfile
 
 import yaml
+from kubernetes import client as kubernetes_client
 from kubernetes import config as kubernetes_config
 from pyspark.sql import SparkSession
 
@@ -77,6 +78,11 @@ class OrchesteraSparkSession:
         )
 
         default_spark_conf = self._default_spark_confs()
+
+        event_log_dir = self._get_event_log_dir(driver_namespace)
+        default_spark_conf["spark.eventLog.enabled"] = "true"
+        default_spark_conf["spark.eventLog.dir"] = event_log_dir
+
         default_spark_conf.update(self.additional_spark_conf)
 
         for key, value in default_spark_conf.items():
@@ -121,6 +127,18 @@ class OrchesteraSparkSession:
 
         logger.info("Executor pod spec written to temp file %s", temp_file_path)
         return temp_file_path
+
+    def _get_event_log_dir(self, namespace):
+        """Read the Spark event log directory from the ``spark-event-log-config`` ConfigMap."""
+        v1 = kubernetes_client.CoreV1Api()
+        cm = v1.read_namespaced_config_map("spark-event-log-config", namespace)
+        event_log_dir = cm.data.get("ORCH_SPARK_EVENT_LOG_DIR")
+        if not event_log_dir:
+            raise ValueError(
+                "spark-event-log-config ConfigMap exists but ORCH_SPARK_EVENT_LOG_DIR key is missing"
+            )
+        logger.info("Spark event log directory: %s", event_log_dir)
+        return event_log_dir
 
     def _default_spark_confs(self):
         return {
