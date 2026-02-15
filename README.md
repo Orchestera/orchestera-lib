@@ -45,6 +45,18 @@ Update kube context with:
 /update-cluster-context <cluster-name>
 ```
 
+Upload IAM policy JSON to Parameter Store with:
+
+```text
+/upload-iam-policy <cluster-name> <namespace> <alias>
+```
+
+Upload secrets JSON to Parameter Store with:
+
+```text
+/upload-secrets <cluster-name> <namespace> <alias>
+```
+
 Exit the TUI with:
 
 ```text
@@ -58,6 +70,25 @@ Commands support fuzzy matching, so close variants like `/strt-proxy` also work.
 ```bash
 aws eks update-kubeconfig --name <cluster-name> --region us-east-1 --profile orchestera-dev
 ```
+
+`/upload-iam-policy <cluster-name> <namespace> <alias>` writes:
+
+```text
+/orchestera/sparklith/<cluster-name>/<namespace>/iams/<alias>
+```
+
+`/upload-secrets <cluster-name> <namespace> <alias>` writes:
+
+```text
+/orchestera/sparklith/<cluster-name>/<namespace>/secrets/<alias>
+```
+
+For both upload commands:
+
+- TUI opens a multiline JSON editor.
+- `Ctrl+S` validates and uploads.
+- `Esc` cancels.
+- Uses AWS profile `orchestera-useradmin`, region `us-east-1`, and overwrites existing values.
 
 This starts:
 
