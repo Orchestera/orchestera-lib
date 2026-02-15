@@ -1,8 +1,8 @@
-from abc import ABC, abstractmethod
-import sys
-import click
 import logging
+import sys
+from abc import ABC, abstractmethod
 
+import click
 
 logger = logging.getLogger(__name__)
 
