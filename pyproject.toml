@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchestera-lib"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 description = "Orchestera Library"
 readme = "README.md"
 requires-python = ">=3.10.14"
