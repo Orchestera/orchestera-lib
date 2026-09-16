@@ -3,10 +3,14 @@ import subprocess
 import threading
 from difflib import get_close_matches
 
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.events import Key
-from textual.widgets import Input, Static, TextArea
+from textual.app import App, ComposeResult  # pyright: ignore[reportMissingImports]
+from textual.binding import Binding  # pyright: ignore[reportMissingImports]
+from textual.events import Key  # pyright: ignore[reportMissingImports]
+from textual.widgets import (  # pyright: ignore[reportMissingImports]
+    Input,
+    Static,
+    TextArea,
+)
 
 
 class OrchesteraTuiApp(App):
@@ -95,7 +99,7 @@ class OrchesteraTuiApp(App):
         ),
     ]
 
-    COMMANDS = {
+    COMMAND_HANDLERS = {
         "/start-proxy": "_start_proxy",
         "/stop-proxy": "_stop_proxy",
         "/update-cluster-context": "_update_cluster_context",
@@ -165,7 +169,7 @@ class OrchesteraTuiApp(App):
         if resolved_command != command_name:
             self.notify(f"Using closest match: {resolved_command}", timeout=2)
 
-        handler_name = self.COMMANDS[resolved_command]
+        handler_name = self.COMMAND_HANDLERS[resolved_command]
         getattr(self, handler_name)(args)
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -182,7 +186,7 @@ class OrchesteraTuiApp(App):
             self._set_suggestion(self._default_suggestion_text())
             return
 
-        if command_name in self.COMMANDS:
+        if command_name in self.COMMAND_HANDLERS:
             self._set_suggestion(f"Selected: {command_name}")
             return
 
@@ -227,7 +231,7 @@ class OrchesteraTuiApp(App):
         event.stop()
         self.action_autocomplete_command()
 
-    def action_quit(self) -> None:
+    async def action_quit(self) -> None:
         self._exit_app()
 
     def action_autocomplete_command(self) -> None:
@@ -661,27 +665,31 @@ class OrchesteraTuiApp(App):
         self.notify("AI Debugger: http://localhost:3080", timeout=5)
 
     def _resolve_command(self, command: str) -> str | None:
-        if command in self.COMMANDS:
+        if command in self.COMMAND_HANDLERS:
             return command
 
-        matches = get_close_matches(command, self.COMMANDS.keys(), n=1, cutoff=0.5)
+        matches = get_close_matches(
+            command, self.COMMAND_HANDLERS.keys(), n=1, cutoff=0.5
+        )
         if matches:
             return matches[0]
 
         return None
 
     def _best_command_match(self, command: str) -> str | None:
-        if command in self.COMMANDS:
+        if command in self.COMMAND_HANDLERS:
             return command
 
         prefix_matches = [
-            candidate for candidate in self.COMMANDS if candidate.startswith(command)
+            candidate
+            for candidate in self.COMMAND_HANDLERS
+            if candidate.startswith(command)
         ]
         if prefix_matches:
             return prefix_matches[0]
 
         fuzzy_matches = get_close_matches(
-            command, self.COMMANDS.keys(), n=1, cutoff=0.35
+            command, self.COMMAND_HANDLERS.keys(), n=1, cutoff=0.35
         )
         if fuzzy_matches:
             return fuzzy_matches[0]
