@@ -1,3 +1,7 @@
+# The package dependencies are installed in the project uv environment. Some
+# editor hosts do not expose that environment to Pyright.
+# pyright: reportMissingImports=false, reportAttributeAccessIssue=false
+
 import logging
 import uuid
 from functools import cached_property
@@ -50,24 +54,25 @@ class SparklithKubernetesClient:
             secrets=secret_names,
         )
 
-        pod.spec.containers[0].command = entrypoint
+        spec = pod.spec
+        metadata = pod.metadata
+        if spec is None or not spec.containers or metadata is None:
+            raise RuntimeError(
+                "Generated driver pod is missing its required spec, container, or metadata"
+            )
+        spec.containers[0].command = entrypoint
 
         # Ensure pod.metadata.labels is initialized
-        if pod.metadata.labels is None:
-            pod.metadata.labels = {}
+        if metadata.labels is None:
+            metadata.labels = {}
+        metadata.labels.update(user_labels)
 
-        pod.metadata.labels.update(
-            {
-                **user_labels,
-            }
-        )
-
-        final_lables = pod.metadata.labels
+        final_lables = metadata.labels
 
         sorted_labels = sorted(final_lables.items())
         labels_str = "".join(f"{key}-{value}" for key, value in sorted_labels)
 
-        pod.metadata.labels["deterministic_pod_id"] = str(
+        metadata.labels["deterministic_pod_id"] = str(
             uuid.uuid5(uuid.NAMESPACE_DNS, labels_str)
         )[:8]
 
@@ -131,7 +136,11 @@ class SparklithKubernetesClient:
             terminated = getattr(state, "terminated", None) if state else None
             if terminated is not None:
                 code = getattr(terminated, "exit_code", None)
-                if code is not None and int(code) != 0:
+                try:
+                    nonzero_exit = code is not None and int(code) != 0
+                except (TypeError, ValueError):
+                    nonzero_exit = True
+                if nonzero_exit:
                     name = getattr(status, "name", "<unknown>")
                     reason = getattr(terminated, "reason", None)
                     message = getattr(terminated, "message", None)

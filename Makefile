@@ -1,4 +1,4 @@
-.PHONY: install install-dev sync sync-dev lint format pre-commit clean
+.PHONY: install install-dev sync sync-dev test lint format pre-commit clean
 
 # Install production dependencies
 install:
@@ -17,6 +17,10 @@ sync-dev: install-dev
 # Run pre-commit on all files
 pre-commit:
 	uv run pre-commit run --all-files
+
+# Run unit tests
+test:
+	uv run python -m unittest discover -s tests -v
 
 # Run linters
 lint:

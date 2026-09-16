@@ -1,11 +1,10 @@
 name: Publish to PyPI
 
+# A published release creates the version tag. Triggering on both the tag push
+# and the release event attempted two uploads of the same PyPI version.
 on:
   release:
     types: [published]
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   publish:
@@ -13,10 +12,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
 
       - name: Set up Python
         run: uv python install 3.10

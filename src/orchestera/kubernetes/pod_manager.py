@@ -2,9 +2,9 @@ import logging
 import time
 from urllib.error import HTTPError
 
-import tenacity
-from kubernetes import client
-from kubernetes.client.rest import ApiException
+import tenacity  # pyright: ignore[reportMissingImports]
+from kubernetes.client import V1DeleteOptions  # pyright: ignore[reportMissingImports]
+from kubernetes.client.rest import ApiException  # pyright: ignore[reportMissingImports]
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class DefaultPodManager:
                 namespace=namespace, body=pod_request_obj
             )
             logger.info(f"Pod {pod_request_obj.metadata.name} created successfully.")
-        except client.rest.ApiException as e:
+        except ApiException as e:
             logger.error(f"Error creating pod: {e}")
             raise
 
@@ -96,7 +96,7 @@ class DefaultPodManager:
             self._client.delete_namespaced_pod(
                 name=pod.metadata.name,
                 namespace=pod.metadata.namespace,
-                body=client.V1DeleteOptions(),
+                body=V1DeleteOptions(),
             )
         except ApiException as e:
             # If the pod is already deleted

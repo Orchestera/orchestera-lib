@@ -1,170 +1,214 @@
+"""Create client-mode Spark sessions from an Orchestera notebook pod."""
+
+# The package dependencies are installed in the project uv environment. Some
+# editor hosts do not expose that environment to Pyright.
+# pyright: reportMissingImports=false
+
+import json
 import logging
 import os
 import socket
 import tempfile
+from pathlib import Path
+from typing import Any, Mapping, Optional, Sequence
 
 import yaml
-from kubernetes import client as kubernetes_client
-from kubernetes import config as kubernetes_config
 from pyspark.sql import SparkSession
 
 from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
 
 logger = logging.getLogger(__name__)
 
-EXECUTOR_IMAGE = "ghcr.io/orchestera/docker-images/spark:3.5.6"
+
+def get_kubernetes_host_addr() -> str:
+    """Return the in-cluster Kubernetes API endpoint."""
+    host = os.environ.get("KUBERNETES_SERVICE_HOST")
+    port = os.environ.get("KUBERNETES_SERVICE_PORT")
+    if not host or not port:
+        raise ValueError(
+            "KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be set"
+        )
+    return f"https://{host}:{port}"
 
 
-def get_kubernetes_host_addr():
-    """Get kubernetes host adddress"""
-    k8s_host = os.environ.get("KUBERNETES_SERVICE_HOST")
-    k8s_port = os.environ.get("KUBERNETES_SERVICE_PORT")
-    return f"https://{k8s_host}:{k8s_port}"
+def _json_object_from_env(name: str) -> Optional[dict[str, str]]:
+    value = os.environ.get(name)
+    if not value:
+        return None
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name} must be a JSON object") from exc
+    if not isinstance(decoded, dict) or not all(
+        isinstance(key, str) and isinstance(item, str) for key, item in decoded.items()
+    ):
+        raise ValueError(f"{name} must be a JSON object with string keys and values")
+    return decoded
+
+
+def _json_list_from_env(name: str) -> Optional[list[dict[str, Any]]]:
+    value = os.environ.get(name)
+    if not value:
+        return None
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name} must be a JSON list") from exc
+    if not isinstance(decoded, list) or not all(
+        isinstance(item, dict) for item in decoded
+    ):
+        raise ValueError(f"{name} must be a JSON list of objects")
+    return decoded
 
 
 class OrchesteraSparkSession:
+    """A client-mode Spark session whose executor settings come from the notebook pod."""
+
     def __init__(
         self,
         *,
-        app_name,
-        executor_instances,
-        executor_cores,
-        executor_memory,
-        spark_jars_packages=None,
-        additional_spark_conf=None,
+        app_name: str,
+        executor_instances: int,
+        executor_cores: int,
+        executor_memory: str,
+        spark_jars_packages: Optional[str] = None,
+        additional_spark_conf: Optional[Mapping[str, str]] = None,
+        executor_image: Optional[str] = None,
+        service_account_name: Optional[str] = None,
+        event_log_dir: Optional[str] = None,
+        node_selector: Optional[Mapping[str, str]] = None,
+        tolerations: Optional[Sequence[Mapping[str, Any]]] = None,
+        python_executable: Optional[str] = None,
     ) -> None:
         self.app_name = app_name
         self.executor_instances = executor_instances
         self.executor_cores = executor_cores
         self.executor_memory = executor_memory
         self.spark_jars_packages = spark_jars_packages
-        self.additional_spark_conf = additional_spark_conf or {}
-        self.spark = None
+        self.additional_spark_conf = dict(additional_spark_conf or {})
+        self.executor_image = executor_image or os.environ.get(
+            "ORCH_SPARK_K8S_CONTAINER_IMAGE"
+        )
+        self.service_account_name = service_account_name or os.environ.get(
+            "ORCH_SPARK_K8S_SERVICE_ACCOUNT", "workload"
+        )
+        self.event_log_dir = (
+            event_log_dir
+            if event_log_dir is not None
+            else os.environ.get("ORCH_SPARK_EVENT_LOG_DIR")
+        )
+        self.node_selector = (
+            dict(node_selector)
+            if node_selector is not None
+            else _json_object_from_env("ORCH_SPARK_K8S_NODE_SELECTOR")
+        )
+        self.tolerations = (
+            list(tolerations)
+            if tolerations is not None
+            else _json_list_from_env("ORCH_SPARK_K8S_TOLERATIONS")
+        )
+        self.python_executable = python_executable or os.environ.get(
+            "PYSPARK_PYTHON", "/opt/venv/bin/python"
+        )
+        self.spark: Optional[SparkSession] = None
+        self._executor_pod_template_file: Optional[str] = None
 
-    def __enter__(self):
-        logging.info("Loading in-cluster config")
+    def __enter__(self) -> SparkSession:
+        if not self.executor_image:
+            raise ValueError(
+                "ORCH_SPARK_K8S_CONTAINER_IMAGE must be set to an immutable image digest"
+            )
 
-        kubernetes_config.load_incluster_config()
-
-        logger.info("Creating spark session with the context manager")
-
-        master_url = f"k8s://{get_kubernetes_host_addr()}"
-        driver_host = socket.gethostbyname(socket.gethostname())
         driver_namespace = os.environ.get("ORCH_SPARK_K8S_NAMESPACE")
-
         if not driver_namespace:
             raise ValueError(
                 "ORCH_SPARK_K8S_NAMESPACE environment variable must be set"
             )
 
-        logger.info("Master url is set to %s", master_url)
-        logger.info("spark.driver.host is set to %s", driver_host)
+        driver_host = os.environ.get(
+            "SPARK_DRIVER_BIND_ADDRESS"
+        ) or socket.gethostbyname(socket.gethostname())
+        logger.info(
+            "Creating client-mode Spark session in namespace %s", driver_namespace
+        )
 
+        builder: Any = SparkSession.builder
         builder = (
-            SparkSession.builder.appName("SparkK8sApp")
-            .master(master_url)
-            .config("spark.kubernetes.executor.container.image", EXECUTOR_IMAGE)
-            .config("spark.driver.host", driver_host)
+            builder.appName(self.app_name)
+            .master(f"k8s://{get_kubernetes_host_addr()}")
+            .config("spark.submit.deployMode", "client")
+            .config("spark.kubernetes.container.image", self.executor_image)
             .config("spark.kubernetes.namespace", driver_namespace)
+            .config(
+                "spark.kubernetes.authenticate.driver.serviceAccountName",
+                self.service_account_name,
+            )
+            .config("spark.driver.host", driver_host)
+            .config("spark.driver.bindAddress", "0.0.0.0")
             .config("spark.executor.instances", self.executor_instances)
             .config("spark.executor.memory", self.executor_memory)
             .config("spark.executor.cores", self.executor_cores)
             .config(
                 "spark.kubernetes.executor.podTemplateFile",
-                self._create_executor_pod_template_file(
-                    driver_namespace, in_cluster=True
-                ),
+                self._create_executor_pod_template_file(driver_namespace),
             )
         )
 
-        default_spark_conf = self._default_spark_confs()
-
-        event_log_dir = self._get_event_log_dir(driver_namespace)
-        default_spark_conf["spark.eventLog.enabled"] = "true"
-        default_spark_conf["spark.eventLog.dir"] = event_log_dir
-
-        default_spark_conf.update(self.additional_spark_conf)
-
-        for key, value in default_spark_conf.items():
+        spark_conf = self._default_spark_confs()
+        if self.event_log_dir:
+            spark_conf.update(
+                {
+                    "spark.eventLog.enabled": "true",
+                    "spark.eventLog.dir": self.event_log_dir,
+                }
+            )
+        spark_conf.update(self.additional_spark_conf)
+        for key, value in spark_conf.items():
             builder = builder.config(key, value)
-
         if self.spark_jars_packages:
             builder = builder.config("spark.jars.packages", self.spark_jars_packages)
 
-        self.spark = builder.getOrCreate()
+        spark = builder.getOrCreate()
+        self.spark = spark
+        return spark
 
-        logger.info("Successfully created spark session")
-
-        return self.spark
-
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
         if self.spark:
-            logger.info("Stopping spark session")
             self.spark.stop()
             self.spark = None
+        if self._executor_pod_template_file:
+            Path(self._executor_pod_template_file).unlink(missing_ok=True)
+            self._executor_pod_template_file = None
 
-    def _create_executor_pod_template_file(
-        self,
-        driver_namespace,
-        in_cluster=True,
-    ):
-        pod_spec_dict = build_executor_pod_spec(
+    def _create_executor_pod_template_file(self, namespace: str) -> str:
+        secrets = os.environ.get("ORCH_SPARK_K8S_ENVS_LIST")
+        pod_spec = build_executor_pod_spec(
             application_name=self.app_name,
-            in_cluster=in_cluster,
-            namespace=driver_namespace,
-            secrets=(
-                os.environ.get("ORCH_SPARK_K8S_ENVS_LIST").split(",")
-                if os.environ.get("ORCH_SPARK_K8S_ENVS_LIST")
-                else None
-            ),
+            in_cluster=True,
+            namespace=namespace,
+            secrets=secrets.split(",") if secrets else None,
+            service_account_name=self.service_account_name,
+            node_selector=self.node_selector,
+            tolerations=self.tolerations,
+            python_executable=self.python_executable,
         )
-
         with tempfile.NamedTemporaryFile(
             delete=False, suffix=".yaml", mode="w"
         ) as tmpfile:
-            yaml.dump(pod_spec_dict, tmpfile, default_flow_style=False)
-            temp_file_path = tmpfile.name
+            yaml.safe_dump(pod_spec, tmpfile, default_flow_style=False)
+            self._executor_pod_template_file = tmpfile.name
+        return self._executor_pod_template_file
 
-        logger.info("Executor pod spec written to temp file %s", temp_file_path)
-        return temp_file_path
-
-    def _get_event_log_dir(self, namespace):
-        """Read the Spark event log directory from the ``spark-event-log-config`` ConfigMap."""
-        v1 = kubernetes_client.CoreV1Api()
-        cm = v1.read_namespaced_config_map("spark-event-log-config", namespace)
-        event_log_dir = cm.data.get("ORCH_SPARK_EVENT_LOG_DIR")
-        if not event_log_dir:
-            raise ValueError(
-                "spark-event-log-config ConfigMap exists but ORCH_SPARK_EVENT_LOG_DIR key is missing"
-            )
-        logger.info("Spark event log directory: %s", event_log_dir)
-        return event_log_dir
-
-    def _default_spark_confs(self):
+    def _default_spark_confs(self) -> dict[str, str]:
         return {
-            "spark.default.parallelism": 4,
-            # Explicitly add the JARs to executor classpath
+            "spark.default.parallelism": "4",
             "spark.executor.extraClassPath": "/opt/spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.746.jar",
-            # Allow EKS Pod Identity agent FULL_URI host for AWS SDK v1
             "spark.driver.extraJavaOptions": "-Dcom.amazonaws.sdk.ecsFullUriAllowedHosts=169.254.170.23,localhost,127.0.0.1",
             "spark.executor.extraJavaOptions": "-Dcom.amazonaws.sdk.ecsFullUriAllowedHosts=169.254.170.23,localhost,127.0.0.1",
-            # Service account for pod identity
-            "spark.kubernetes.authenticate.driver.serviceAccountName": "spark",
-            "spark.kubernetes.authenticate.executor.serviceAccountName": "spark",
-            # Hadoop AWS filesystem
             "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
-            # Use EKS Pod Identity container credentials
-            "spark.hadoop.fs.s3a.aws.credentials.provider": (
-                "com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper"
-            ),
-            # Prevent IMDS from being used as a fallback so node instance profile doesn't override Pod Identity
+            "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper",
             "spark.executorEnv.AWS_EC2_METADATA_DISABLED": "true",
             "spark.kubernetes.driverEnv.AWS_EC2_METADATA_DISABLED": "true",
-            # Optional: faster committers for Spark
-            "spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version": "2",
-            "spark.hadoop.fs.s3a.committer.name": "directory",
-            "spark.hadoop.fs.s3a.committer.magic.enabled": "false",
-            # Set HOME to writable directory for executors
             "spark.executorEnv.HOME": "/tmp",
-            "spark.executorEnv.PYSPARK_PYTHON": "python3",
+            "spark.executorEnv.PYSPARK_PYTHON": self.python_executable,
         }

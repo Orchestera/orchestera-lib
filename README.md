@@ -1,5 +1,24 @@
 # orchestera-lib
 
+## Spark runtime configuration
+
+`OrchesteraSparkSession` creates a client-mode Spark session from inside an
+Orchestera notebook pod. It never selects an image, registry secret, service
+account, or node placement on its own:
+
+- `ORCH_SPARK_K8S_CONTAINER_IMAGE` is required and must be the digest-pinned
+  driver/executor image supplied by the notebook provisioner.
+- `ORCH_SPARK_K8S_NAMESPACE` is required; `ORCH_SPARK_K8S_SERVICE_ACCOUNT`
+  defaults to `workload` and can be overridden for another tenant contract.
+- `ORCH_SPARK_K8S_NODE_SELECTOR` and `ORCH_SPARK_K8S_TOLERATIONS` are optional
+  JSON values copied into Spark's executor pod template.
+- `ORCH_SPARK_EVENT_LOG_DIR` is optional. Event logging is disabled unless a
+  directory is explicitly supplied.
+
+The image must already contain matching Spark/PySpark and S3A/JDBC
+requirements. The library does not install packages at runtime or inject image
+pull credentials.
+
 ## Minimal TUI
 
 Run from a local checkout:
