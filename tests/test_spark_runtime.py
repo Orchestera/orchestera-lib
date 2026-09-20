@@ -1,5 +1,8 @@
+import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -171,6 +174,79 @@ class SparkSessionTests(unittest.TestCase):
         )
         self.assertEqual(session.event_log_dir, "s3a://logs/spark")
         self.assertNotIn("spark.eventLog.enabled", session._default_spark_confs())
+
+
+class SparkSessionConnectionsTests(unittest.TestCase):
+    """The connections the control plane mounts must reach the session's config."""
+
+    BUCKET_KEY = "spark.hadoop.fs.s3a.bucket.analytics.access.key"
+    GLOBAL_PROVIDER = "spark.hadoop.fs.s3a.aws.credentials.provider"
+    POD_IDENTITY = "com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper"
+    S3_ENTRY = {
+        "name": "analytics",
+        "kind": "S3",
+        "spark_conf": {BUCKET_KEY: "AKIAEXAMPLE"},
+    }
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def build_conf(self, connections, **kwargs):
+        """Enter a session against a recording builder; return the conf it applied."""
+        path = Path(self._tmp.name) / "connections.json"
+        path.write_text(json.dumps(connections), encoding="utf-8")
+
+        builder = RecordingBuilder()
+        environment = {
+            "KUBERNETES_SERVICE_HOST": "kubernetes.default.svc",
+            "KUBERNETES_SERVICE_PORT": "443",
+            "ORCH_SPARK_K8S_NAMESPACE": "tenant-a",
+            "SPARK_DRIVER_BIND_ADDRESS": "10.0.0.4",
+        }
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch(
+                "orchestera.spark.session.SparkSession",
+                SimpleNamespace(builder=builder),
+            ),
+        ):
+            session = OrchesteraSparkSession(
+                app_name="smoke",
+                executor_instances=1,
+                executor_cores=1,
+                executor_memory="512m",
+                executor_image="ghcr.io/orchestera/docker-images/spark@sha256:"
+                + "a" * 64,
+                connections_file=str(path),
+                **kwargs,
+            )
+            session.__enter__()
+            session.__exit__(None, None, None)
+        return builder.configurations
+
+    def test_a_mounted_connection_reaches_the_spark_conf(self):
+        conf = self.build_conf([self.S3_ENTRY])
+        self.assertEqual(conf[self.BUCKET_KEY], "AKIAEXAMPLE")
+
+    def test_per_bucket_keys_leave_the_pod_identity_provider_in_place(self):
+        conf = self.build_conf([self.S3_ENTRY])
+
+        self.assertEqual(conf[self.BUCKET_KEY], "AKIAEXAMPLE")
+        self.assertEqual(conf[self.GLOBAL_PROVIDER], self.POD_IDENTITY)
+
+    def test_an_explicit_caller_override_still_wins(self):
+        conf = self.build_conf(
+            [self.S3_ENTRY],
+            additional_spark_conf={self.BUCKET_KEY: "AKIAOVERRIDE"},
+        )
+        self.assertEqual(conf[self.BUCKET_KEY], "AKIAOVERRIDE")
+
+    def test_no_connections_leaves_the_defaults_untouched(self):
+        conf = self.build_conf([])
+
+        self.assertNotIn(self.BUCKET_KEY, conf)
+        self.assertEqual(conf[self.GLOBAL_PROVIDER], self.POD_IDENTITY)
 
 
 if __name__ == "__main__":
