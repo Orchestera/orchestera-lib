@@ -19,6 +19,43 @@ The image must already contain matching Spark/PySpark and S3A/JDBC
 requirements. The library does not install packages at runtime or inject image
 pull credentials.
 
+## External connections
+
+The control plane mounts the workspace's S3 and database connections into the
+pod as a read-only `connections.json`, pointed at by `ORCH_CONNECTIONS_FILE`
+(default `/var/run/orchestera/connections/connections.json`). The file holds
+only the connections of the workspace its namespace is bound to.
+
+`OrchesteraSparkSession` reads it when the session is created and applies each
+S3 connection's per-bucket `spark.hadoop.fs.s3a.bucket.<bucket>.*` config, so
+`s3a://` paths work with no setup in the notebook:
+
+```python
+with OrchesteraSparkSession(app_name="etl", executor_instances=2,
+                            executor_cores=1, executor_memory="2g") as spark:
+    df = spark.read.parquet("s3a://analytics/events/")
+```
+
+Those keys are per bucket, so they take precedence for their own bucket while
+leaving the global Pod Identity credentials provider in place for every other
+bucket. An explicit `additional_spark_conf` entry still overrides both. Because
+the file is read at session creation, a connection added after the notebook
+started is picked up by the next session, once the kubelet has refreshed the
+mounted Secret (about a minute).
+
+Database connections are not applied automatically -- read one by name:
+
+```python
+from orchestera.connections import get_connection
+
+conn = get_connection("warehouse")
+df = spark.read.format("jdbc").options(**conn.jdbc).option("dbtable", "public.orders").load()
+```
+
+A missing file means the workspace has no connections and is not an error. A
+file that exists but cannot be parsed raises `ConnectionsError` rather than
+starting a session that would fail later with a confusing permission error.
+
 ## Minimal TUI
 
 Run from a local checkout:

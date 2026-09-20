@@ -15,6 +15,7 @@ from typing import Any, Mapping, Optional, Sequence
 import yaml
 from pyspark.sql import SparkSession
 
+from orchestera.connections import spark_conf_from_file
 from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class OrchesteraSparkSession:
         node_selector: Optional[Mapping[str, str]] = None,
         tolerations: Optional[Sequence[Mapping[str, Any]]] = None,
         python_executable: Optional[str] = None,
+        connections_file: Optional[str] = None,
     ) -> None:
         self.app_name = app_name
         self.executor_instances = executor_instances
@@ -110,6 +112,7 @@ class OrchesteraSparkSession:
         self.python_executable = python_executable or os.environ.get(
             "PYSPARK_PYTHON", "/opt/venv/bin/python"
         )
+        self.connections_file = connections_file
         self.spark: Optional[SparkSession] = None
         self._executor_pod_template_file: Optional[str] = None
 
@@ -155,6 +158,11 @@ class OrchesteraSparkSession:
         )
 
         spark_conf = self._default_spark_confs()
+        # The workspace's own S3 credentials, mounted by the control plane.
+        # After the defaults so per-bucket keys win over the global Pod
+        # Identity provider, before additional_spark_conf so an explicit
+        # caller override still wins over both.
+        spark_conf.update(spark_conf_from_file(self.connections_file))
         if self.event_log_dir:
             spark_conf.update(
                 {
