@@ -20,8 +20,8 @@ For prerelease versions it marks the GitHub Release as a prerelease.
 ## Spark runtime configuration
 
 `OrchesteraSparkSession` creates a client-mode Spark session from inside an
-Orchestera notebook pod. It never selects an image, registry secret, service
-account, or node placement on its own:
+Orchestera notebook pod. It uses the notebook's image and namespace for
+executors, with tenant-safe placement defaults and optional overrides:
 
 - `ORCH_SPARK_K8S_CONTAINER_IMAGE` is required and must be the digest-pinned
   driver/executor image supplied by the notebook provisioner.
@@ -33,9 +33,16 @@ account, or node placement on its own:
   `ORCH_SPARK_K8S_NODE_SELECTOR` and `ORCH_SPARK_K8S_TOLERATIONS` are optional
   JSON overrides for clusters with a different placement contract; explicit
   session arguments override those environment values.
-- The executor CPU limit defaults to `executor_cores` to satisfy tenant
-  ResourceQuota; `additional_spark_conf` can override
-  `spark.kubernetes.executor.limit.cores` if needed.
+- `executor_cores` sets the executor CPU **request**, but not its Kubernetes
+  CPU **limit**. The tenant `node-config` ResourceQuota requires `limits.cpu`
+  on every executor pod, so the session also sets
+  `spark.kubernetes.executor.limit.cores` to `executor_cores` by default
+  (e.g. one core gives a `1` CPU limit). Without this setting pod creation
+  fails with `failed quota: node-config: must specify limits.cpu for:
+  spark-executor`; Fabric8 may misleadingly call it a service-account error.
+  `additional_spark_conf` may explicitly override the default limit.
+  Spark derives the executor memory request and limit from executor memory
+  plus overhead.
 - `ORCH_SPARK_EVENT_LOG_DIR` is optional. Event logging is disabled unless a
   directory is explicitly supplied.
 
