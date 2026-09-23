@@ -10,8 +10,15 @@ account, or node placement on its own:
   driver/executor image supplied by the notebook provisioner.
 - `ORCH_SPARK_K8S_NAMESPACE` is required; `ORCH_SPARK_K8S_SERVICE_ACCOUNT`
   defaults to `workload` and can be overridden for another tenant contract.
-- `ORCH_SPARK_K8S_NODE_SELECTOR` and `ORCH_SPARK_K8S_TOLERATIONS` are optional
-  JSON values copied into Spark's executor pod template.
+- Executor pods default to the tenant NodePool named by `ORCH_SPARK_K8S_NAMESPACE`,
+  with its matching `orchestera.com/namespace` NoSchedule toleration. This keeps
+  executors in the same workspace as the notebook without hardcoding a namespace.
+  `ORCH_SPARK_K8S_NODE_SELECTOR` and `ORCH_SPARK_K8S_TOLERATIONS` are optional
+  JSON overrides for clusters with a different placement contract; explicit
+  session arguments override those environment values.
+- The executor CPU limit defaults to `executor_cores` to satisfy tenant
+  ResourceQuota; `additional_spark_conf` can override
+  `spark.kubernetes.executor.limit.cores` if needed.
 - `ORCH_SPARK_EVENT_LOG_DIR` is optional. Event logging is disabled unless a
   directory is explicitly supplied.
 
