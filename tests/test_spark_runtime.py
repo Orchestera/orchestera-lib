@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import patch
 
 import yaml
@@ -84,27 +85,31 @@ class PodSpecBuilderTests(unittest.TestCase):
 
 class SparkSessionTests(unittest.TestCase):
     def test_missing_cluster_endpoint_fails_clearly(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(ValueError, "KUBERNETES_SERVICE_HOST"):
-                get_kubernetes_host_addr()
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            self.assertRaisesRegex(ValueError, "KUBERNETES_SERVICE_HOST"),
+        ):
+            get_kubernetes_host_addr()
 
     def test_missing_executor_image_fails_before_creating_spark(self):
-        with patch.dict(
-            os.environ,
-            {
-                "KUBERNETES_SERVICE_HOST": "kubernetes.default.svc",
-                "KUBERNETES_SERVICE_PORT": "443",
-                "ORCH_SPARK_K8S_NAMESPACE": "tenant-a",
-            },
-            clear=True,
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "KUBERNETES_SERVICE_HOST": "kubernetes.default.svc",
+                    "KUBERNETES_SERVICE_PORT": "443",
+                    "ORCH_SPARK_K8S_NAMESPACE": "tenant-a",
+                },
+                clear=True,
+            ),
+            self.assertRaisesRegex(ValueError, "ORCH_SPARK_K8S_CONTAINER_IMAGE"),
         ):
-            with self.assertRaisesRegex(ValueError, "ORCH_SPARK_K8S_CONTAINER_IMAGE"):
-                OrchesteraSparkSession(
-                    app_name="smoke",
-                    executor_instances=1,
-                    executor_cores=1,
-                    executor_memory="512m",
-                ).__enter__()
+            OrchesteraSparkSession(
+                app_name="smoke",
+                executor_instances=1,
+                executor_cores=1,
+                executor_memory="512m",
+            ).__enter__()
 
     def test_session_uses_notebook_image_digest_and_tenant_workload_settings(self):
         builder = RecordingBuilder()
@@ -157,12 +162,112 @@ class SparkSessionTests(unittest.TestCase):
             "workload",
         )
         self.assertEqual(builder.configurations["spark.driver.host"], "10.0.0.4")
+        self.assertEqual(builder.configurations["spark.driver.bindAddress"], "10.0.0.4")
+        self.assertEqual(
+            builder.configurations["spark.kubernetes.executor.limit.cores"], "1"
+        )
         self.assertNotIn("spark.eventLog.enabled", builder.configurations)
         self.assertEqual(pod_spec["serviceAccountName"], "workload")
         self.assertEqual(
             pod_spec["nodeSelector"], {"karpenter.sh/nodepool": "tenant-a"}
         )
         self.assertFalse(os.path.exists(template_path))
+
+    def test_executor_placement_defaults_follow_each_workspace_namespace(self):
+        with patch.dict(os.environ, {}, clear=True):
+            for namespace in ("workspace-a", "workspace-b"):
+                with self.subTest(namespace=namespace):
+                    session = OrchesteraSparkSession(
+                        app_name="smoke",
+                        executor_instances=2,
+                        executor_cores=1,
+                        executor_memory="1g",
+                    )
+                    template_path = session._create_executor_pod_template_file(
+                        namespace
+                    )
+                    try:
+                        pod = yaml.safe_load(Path(template_path).read_text())
+                        assert isinstance(pod, dict)
+                        pod_spec = pod["spec"]
+                        self.assertEqual(
+                            pod_spec["nodeSelector"],
+                            {"karpenter.sh/nodepool": namespace},
+                        )
+                        self.assertEqual(
+                            pod_spec["tolerations"],
+                            [
+                                {
+                                    "key": "orchestera.com/namespace",
+                                    "operator": "Equal",
+                                    "value": namespace,
+                                    "effect": "NoSchedule",
+                                }
+                            ],
+                        )
+                    finally:
+                        session.__exit__(None, None, None)
+                    self.assertFalse(Path(template_path).exists())
+
+    def test_explicit_executor_placement_overrides_workspace_defaults(self):
+        with patch.dict(os.environ, {}, clear=True):
+            session = OrchesteraSparkSession(
+                app_name="smoke",
+                executor_instances=2,
+                executor_cores=1,
+                executor_memory="1g",
+                node_selector={"custom": "pool"},
+                tolerations=[
+                    {
+                        "key": "custom-taint",
+                        "operator": "Exists",
+                        "effect": "NoSchedule",
+                    }
+                ],
+            )
+            template_path = session._create_executor_pod_template_file("workspace-a")
+            try:
+                pod = yaml.safe_load(Path(template_path).read_text())
+                assert isinstance(pod, dict)
+                pod_spec = pod["spec"]
+                self.assertEqual(pod_spec["nodeSelector"], {"custom": "pool"})
+                self.assertEqual(pod_spec["tolerations"][0]["key"], "custom-taint")
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_environment_placement_overrides_workspace_defaults(self):
+        environment = {
+            "ORCH_SPARK_K8S_NODE_SELECTOR": '{"custom":"pool"}',
+            "ORCH_SPARK_K8S_TOLERATIONS": '[{"key":"custom-taint","operator":"Exists"}]',
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            session = OrchesteraSparkSession(
+                app_name="smoke",
+                executor_instances=2,
+                executor_cores=1,
+                executor_memory="1g",
+            )
+            template_path = session._create_executor_pod_template_file("workspace-a")
+            try:
+                pod = yaml.safe_load(Path(template_path).read_text())
+                assert isinstance(pod, dict)
+                pod_spec = pod["spec"]
+                self.assertEqual(pod_spec["nodeSelector"], {"custom": "pool"})
+                self.assertEqual(pod_spec["tolerations"][0]["key"], "custom-taint")
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_explicit_executor_cpu_limit_override(self):
+        session = OrchesteraSparkSession(
+            app_name="smoke",
+            executor_instances=2,
+            executor_cores=1,
+            executor_memory="1g",
+            additional_spark_conf={"spark.kubernetes.executor.limit.cores": "1.5"},
+        )
+        conf = session._default_spark_confs()
+        conf.update(session.additional_spark_conf)
+        self.assertEqual(conf["spark.kubernetes.executor.limit.cores"], "1.5")
 
     def test_event_log_is_opt_in(self):
         session = OrchesteraSparkSession(
@@ -182,7 +287,7 @@ class SparkSessionConnectionsTests(unittest.TestCase):
     BUCKET_KEY = "spark.hadoop.fs.s3a.bucket.analytics.access.key"
     GLOBAL_PROVIDER = "spark.hadoop.fs.s3a.aws.credentials.provider"
     POD_IDENTITY = "com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper"
-    S3_ENTRY = {
+    S3_ENTRY: ClassVar[dict] = {
         "name": "analytics",
         "kind": "S3",
         "spark_conf": {BUCKET_KEY: "AKIAEXAMPLE"},

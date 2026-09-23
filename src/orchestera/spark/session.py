@@ -9,8 +9,9 @@ import logging
 import os
 import socket
 import tempfile
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any
 
 import yaml
 from pyspark.sql import SparkSession
@@ -32,7 +33,7 @@ def get_kubernetes_host_addr() -> str:
     return f"https://{host}:{port}"
 
 
-def _json_object_from_env(name: str) -> Optional[dict[str, str]]:
+def _json_object_from_env(name: str) -> dict[str, str] | None:
     value = os.environ.get(name)
     if not value:
         return None
@@ -47,7 +48,7 @@ def _json_object_from_env(name: str) -> Optional[dict[str, str]]:
     return decoded
 
 
-def _json_list_from_env(name: str) -> Optional[list[dict[str, Any]]]:
+def _json_list_from_env(name: str) -> list[dict[str, Any]] | None:
     value = os.environ.get(name)
     if not value:
         return None
@@ -72,15 +73,15 @@ class OrchesteraSparkSession:
         executor_instances: int,
         executor_cores: int,
         executor_memory: str,
-        spark_jars_packages: Optional[str] = None,
-        additional_spark_conf: Optional[Mapping[str, str]] = None,
-        executor_image: Optional[str] = None,
-        service_account_name: Optional[str] = None,
-        event_log_dir: Optional[str] = None,
-        node_selector: Optional[Mapping[str, str]] = None,
-        tolerations: Optional[Sequence[Mapping[str, Any]]] = None,
-        python_executable: Optional[str] = None,
-        connections_file: Optional[str] = None,
+        spark_jars_packages: str | None = None,
+        additional_spark_conf: Mapping[str, str] | None = None,
+        executor_image: str | None = None,
+        service_account_name: str | None = None,
+        event_log_dir: str | None = None,
+        node_selector: Mapping[str, str] | None = None,
+        tolerations: Sequence[Mapping[str, Any]] | None = None,
+        python_executable: str | None = None,
+        connections_file: str | None = None,
     ) -> None:
         self.app_name = app_name
         self.executor_instances = executor_instances
@@ -113,8 +114,8 @@ class OrchesteraSparkSession:
             "PYSPARK_PYTHON", "/opt/venv/bin/python"
         )
         self.connections_file = connections_file
-        self.spark: Optional[SparkSession] = None
-        self._executor_pod_template_file: Optional[str] = None
+        self.spark: SparkSession | None = None
+        self._executor_pod_template_file: str | None = None
 
     def __enter__(self) -> SparkSession:
         if not self.executor_image:
@@ -147,7 +148,7 @@ class OrchesteraSparkSession:
                 self.service_account_name,
             )
             .config("spark.driver.host", driver_host)
-            .config("spark.driver.bindAddress", "0.0.0.0")
+            .config("spark.driver.bindAddress", driver_host)
             .config("spark.executor.instances", self.executor_instances)
             .config("spark.executor.memory", self.executor_memory)
             .config("spark.executor.cores", self.executor_cores)
@@ -196,8 +197,23 @@ class OrchesteraSparkSession:
             namespace=namespace,
             secrets=secrets.split(",") if secrets else None,
             service_account_name=self.service_account_name,
-            node_selector=self.node_selector,
-            tolerations=self.tolerations,
+            node_selector=(
+                self.node_selector
+                if self.node_selector is not None
+                else {"karpenter.sh/nodepool": namespace}
+            ),
+            tolerations=(
+                self.tolerations
+                if self.tolerations is not None
+                else [
+                    {
+                        "key": "orchestera.com/namespace",
+                        "operator": "Equal",
+                        "value": namespace,
+                        "effect": "NoSchedule",
+                    }
+                ]
+            ),
             python_executable=self.python_executable,
         )
         with tempfile.NamedTemporaryFile(
@@ -210,6 +226,8 @@ class OrchesteraSparkSession:
     def _default_spark_confs(self) -> dict[str, str]:
         return {
             "spark.default.parallelism": "4",
+            # Tenant ResourceQuota requires an executor CPU limit as well as a request.
+            "spark.kubernetes.executor.limit.cores": str(self.executor_cores),
             "spark.executor.extraClassPath": "/opt/spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.746.jar",
             "spark.driver.extraJavaOptions": "-Dcom.amazonaws.sdk.ecsFullUriAllowedHosts=169.254.170.23,localhost,127.0.0.1",
             "spark.executor.extraJavaOptions": "-Dcom.amazonaws.sdk.ecsFullUriAllowedHosts=169.254.170.23,localhost,127.0.0.1",
@@ -217,6 +235,6 @@ class OrchesteraSparkSession:
             "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper",
             "spark.executorEnv.AWS_EC2_METADATA_DISABLED": "true",
             "spark.kubernetes.driverEnv.AWS_EC2_METADATA_DISABLED": "true",
-            "spark.executorEnv.HOME": "/tmp",
+            "spark.executorEnv.HOME": "/workspace",
             "spark.executorEnv.PYSPARK_PYTHON": self.python_executable,
         }
