@@ -1,5 +1,22 @@
 # orchestera-lib
 
+## Releasing
+
+Bump `pyproject.toml` and `uv.lock` in a PR, review and merge it. From a clean,
+up-to-date local `main` with `uv` and an authenticated `gh` CLI, run:
+
+```bash
+make release
+```
+
+This checks the lockfile, runs the unit tests, builds the distributions, and
+creates `v<project-version>` from the current `main` commit. Publishing that
+GitHub Release triggers `.github/workflows/publish.yml` to upload to PyPI once;
+merging the version-bump PR alone does **not** publish. Confirm that workflow
+succeeds and the wheel appears on PyPI before updating the Docker image pin.
+The target refuses a dirty/out-of-date checkout or an existing remote tag.
+For prerelease versions it marks the GitHub Release as a prerelease.
+
 ## Spark runtime configuration
 
 `OrchesteraSparkSession` creates a client-mode Spark session from inside an
