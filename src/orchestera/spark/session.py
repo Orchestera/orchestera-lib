@@ -21,6 +21,12 @@ from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
 
 logger = logging.getLogger(__name__)
 
+# Spark 3.5's own default, pinned: the Spark UI and event logs (and so the
+# History Server) show matching conf values as *********(redacted). Workspace
+# connections put S3 keys in `spark.hadoop.fs.s3a.bucket.<b>.access.key` /
+# `.secret.key` / `.session.token`; applied last so no caller conf can loosen it.
+REDACTION_REGEX = "(?i)secret|password|token|access[.]?key"
+
 
 def get_kubernetes_host_addr() -> str:
     """Return the in-cluster Kubernetes API endpoint."""
@@ -172,6 +178,7 @@ class OrchesteraSparkSession:
                 }
             )
         spark_conf.update(self.additional_spark_conf)
+        spark_conf["spark.redaction.regex"] = REDACTION_REGEX
         for key, value in spark_conf.items():
             builder = builder.config(key, value)
         if self.spark_jars_packages:

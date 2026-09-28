@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -81,6 +82,47 @@ class PodSpecBuilderTests(unittest.TestCase):
             spec["containers"][0]["env"][1],
             {"name": "PYSPARK_PYTHON", "value": "/opt/venv/bin/python"},
         )
+
+    def test_executor_template_passes_pod_security_restricted(self):
+        # Tenant namespaces enforce Pod Security `restricted`; an executor
+        # template without these fields is rejected before Spark sees a pod.
+        pod = build_executor_pod_spec(
+            application_name="job", in_cluster=True, namespace="tenant-a"
+        )
+
+        spec = pod["spec"]
+        self.assertEqual(
+            spec["securityContext"],
+            {
+                "runAsNonRoot": True,
+                "runAsUser": 185,
+                "runAsGroup": 185,
+                "seccompProfile": {"type": "RuntimeDefault"},
+            },
+        )
+        self.assertEqual(
+            spec["containers"][0]["securityContext"],
+            {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}},
+        )
+
+    def test_driver_passes_pod_security_restricted(self):
+        pod = build_driver_pod_spec(
+            application_name="job",
+            image="ghcr.io/orchestera/docker-images/spark@sha256:" + "a" * 64,
+            memory_request="1Gi",
+            cpu_request="1",
+            in_cluster=True,
+            namespace="tenant-a",
+        )
+
+        spec = pod.spec
+        assert spec is not None and spec.security_context is not None
+        self.assertTrue(spec.security_context.run_as_non_root)
+        self.assertEqual(spec.security_context.run_as_user, 185)
+        self.assertEqual(spec.security_context.seccomp_profile.type, "RuntimeDefault")
+        container_context = spec.containers[0].security_context
+        self.assertFalse(container_context.allow_privilege_escalation)
+        self.assertEqual(container_context.capabilities.drop, ["ALL"])
 
 
 class SparkSessionTests(unittest.TestCase):
@@ -346,6 +388,21 @@ class SparkSessionConnectionsTests(unittest.TestCase):
             additional_spark_conf={self.BUCKET_KEY: "AKIAOVERRIDE"},
         )
         self.assertEqual(conf[self.BUCKET_KEY], "AKIAOVERRIDE")
+
+    def test_s3a_keys_are_redacted_and_a_caller_cannot_loosen_it(self):
+        conf = self.build_conf(
+            [self.S3_ENTRY],
+            additional_spark_conf={"spark.redaction.regex": "(?i)password"},
+        )
+        pattern = re.compile(conf["spark.redaction.regex"])
+        for key in (
+            self.BUCKET_KEY,
+            "spark.hadoop.fs.s3a.bucket.analytics.secret.key",
+            "spark.hadoop.fs.s3a.bucket.analytics.session.token",
+            "spark.hadoop.fs.s3a.access.key",
+        ):
+            with self.subTest(key=key):
+                self.assertIsNotNone(pattern.search(key))
 
     def test_no_connections_leaves_the_defaults_untouched(self):
         conf = self.build_conf([])
