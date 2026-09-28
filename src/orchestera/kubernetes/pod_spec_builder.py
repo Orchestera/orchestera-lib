@@ -6,20 +6,43 @@ Utility functions to manage Kubernetes pod specifications for Spark applications
 # editor hosts do not expose that environment to Pyright.
 # pyright: reportMissingImports=false
 
+import copy
 from typing import Any, Mapping, Optional, Sequence
 
 from kubernetes.client import (
+    V1Capabilities,
     V1Container,
     V1EnvFromSource,
     V1EnvVar,
     V1LocalObjectReference,
     V1ObjectMeta,
     V1Pod,
+    V1PodSecurityContext,
     V1PodSpec,
     V1ResourceRequirements,
+    V1SeccompProfile,
     V1SecretEnvSource,
+    V1SecurityContext,
     V1Toleration,
 )
+
+# The `spark` user of the apache/spark base image, which the Orchestera Spark
+# runtime keeps. Numeric because the image's USER is a name, and the kubelet
+# can only enforce runAsNonRoot against a numeric UID.
+SPARK_UID = 185
+
+# Pod Security `restricted`, which tenant namespaces enforce: a pod missing
+# any of these is rejected at admission, so Spark would never get executors.
+RESTRICTED_POD_SECURITY_CONTEXT: dict[str, Any] = {
+    "runAsNonRoot": True,
+    "runAsUser": SPARK_UID,
+    "runAsGroup": SPARK_UID,
+    "seccompProfile": {"type": "RuntimeDefault"},
+}
+RESTRICTED_CONTAINER_SECURITY_CONTEXT: dict[str, Any] = {
+    "allowPrivilegeEscalation": False,
+    "capabilities": {"drop": ["ALL"]},
+}
 
 
 def build_driver_pod_spec(
@@ -48,6 +71,10 @@ def build_driver_pod_spec(
                 name="spark-driver",
                 image=image,
                 image_pull_policy="Always",
+                security_context=V1SecurityContext(
+                    allow_privilege_escalation=False,
+                    capabilities=V1Capabilities(drop=["ALL"]),
+                ),
                 # TODO: This path needs to be fixed
                 command=["python3", "app/src/sparkeum/spark/application.py"],
                 resources=V1ResourceRequirements(
@@ -64,6 +91,12 @@ def build_driver_pod_spec(
             )
         ],
         restart_policy="Never",
+        security_context=V1PodSecurityContext(
+            run_as_non_root=True,
+            run_as_user=SPARK_UID,
+            run_as_group=SPARK_UID,
+            seccomp_profile=V1SeccompProfile(type="RuntimeDefault"),
+        ),
     )
 
     if secrets and pod_spec.containers:
@@ -132,9 +165,13 @@ def build_executor_pod_spec(
                         {"name": "HOME", "value": "/tmp"},
                         {"name": "PYSPARK_PYTHON", "value": python_executable},
                     ],
+                    "securityContext": copy.deepcopy(
+                        RESTRICTED_CONTAINER_SECURITY_CONTEXT
+                    ),
                     # Add any additional container specs if needed
                 }
             ],
+            "securityContext": copy.deepcopy(RESTRICTED_POD_SECURITY_CONTEXT),
             **(
                 {"serviceAccountName": service_account_name}
                 if service_account_name
