@@ -105,6 +105,28 @@ class PodSpecBuilderTests(unittest.TestCase):
             {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}},
         )
 
+    def test_executor_and_driver_are_kept_off_karpenter_consolidation(self):
+        executor = build_executor_pod_spec(
+            application_name="job", in_cluster=True, namespace="tenant-a"
+        )
+        driver = build_driver_pod_spec(
+            application_name="job",
+            image="ghcr.io/orchestera/docker-images/spark@sha256:" + "a" * 64,
+            memory_request="1Gi",
+            cpu_request="1",
+            in_cluster=True,
+            namespace="tenant-a",
+        )
+
+        self.assertEqual(
+            executor["metadata"]["annotations"],
+            {"karpenter.sh/do-not-disrupt": "true"},
+        )
+        assert driver.metadata is not None
+        self.assertEqual(
+            driver.metadata.annotations, {"karpenter.sh/do-not-disrupt": "true"}
+        )
+
     def test_driver_passes_pod_security_restricted(self):
         pod = build_driver_pod_spec(
             application_name="job",
@@ -212,6 +234,10 @@ class SparkSessionTests(unittest.TestCase):
         self.assertEqual(pod_spec["serviceAccountName"], "workload")
         self.assertEqual(
             pod_spec["nodeSelector"], {"karpenter.sh/nodepool": "tenant-a"}
+        )
+        self.assertEqual(
+            pod_template["metadata"]["annotations"],
+            {"karpenter.sh/do-not-disrupt": "true"},
         )
         self.assertFalse(os.path.exists(template_path))
 
@@ -403,6 +429,12 @@ class SparkSessionConnectionsTests(unittest.TestCase):
         ):
             with self.subTest(key=key):
                 self.assertIsNotNone(pattern.search(key))
+
+    def test_executors_stay_do_not_disrupt_and_a_caller_cannot_drop_it(self):
+        key = "spark.kubernetes.executor.annotation.karpenter.sh/do-not-disrupt"
+        self.assertEqual(self.build_conf([])[key], "true")
+        conf = self.build_conf([], additional_spark_conf={key: "false"})
+        self.assertEqual(conf[key], "true")
 
     def test_no_connections_leaves_the_defaults_untouched(self):
         conf = self.build_conf([])
