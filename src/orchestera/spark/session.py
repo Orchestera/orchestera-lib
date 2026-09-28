@@ -17,7 +17,10 @@ import yaml
 from pyspark.sql import SparkSession
 
 from orchestera.connections import spark_conf_from_file
-from orchestera.kubernetes.pod_spec_builder import build_executor_pod_spec
+from orchestera.kubernetes.pod_spec_builder import (
+    DO_NOT_DISRUPT_ANNOTATION,
+    build_executor_pod_spec,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,12 @@ logger = logging.getLogger(__name__)
 # connections put S3 keys in `spark.hadoop.fs.s3a.bucket.<b>.access.key` /
 # `.secret.key` / `.session.token`; applied last so no caller conf can loosen it.
 REDACTION_REGEX = "(?i)secret|password|token|access[.]?key"
+
+# Spark applies annotation confs over the pod template's, so this is pinned
+# after caller conf too: a caller can't let Karpenter evict executors mid-job.
+EXECUTOR_DO_NOT_DISRUPT_CONF = (
+    f"spark.kubernetes.executor.annotation.{DO_NOT_DISRUPT_ANNOTATION}"
+)
 
 
 def get_kubernetes_host_addr() -> str:
@@ -179,6 +188,7 @@ class OrchesteraSparkSession:
             )
         spark_conf.update(self.additional_spark_conf)
         spark_conf["spark.redaction.regex"] = REDACTION_REGEX
+        spark_conf[EXECUTOR_DO_NOT_DISRUPT_CONF] = "true"
         for key, value in spark_conf.items():
             builder = builder.config(key, value)
         if self.spark_jars_packages:

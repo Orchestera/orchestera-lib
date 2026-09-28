@@ -44,6 +44,12 @@ RESTRICTED_CONTAINER_SECURITY_CONTEXT: dict[str, Any] = {
     "capabilities": {"drop": ["ALL"]},
 }
 
+# Karpenter consolidation would otherwise evict a running driver or executor
+# mid-job to repack its node. Karpenter still removes the node once the pods
+# are gone, so a finished job doesn't pin it.
+DO_NOT_DISRUPT_ANNOTATION = "karpenter.sh/do-not-disrupt"
+DO_NOT_DISRUPT_ANNOTATIONS: dict[str, str] = {DO_NOT_DISRUPT_ANNOTATION: "true"}
+
 
 def build_driver_pod_spec(
     *,
@@ -128,6 +134,7 @@ def build_driver_pod_spec(
                 "namespace": namespace,
                 "spark-role": "driver",
             },
+            annotations=dict(DO_NOT_DISRUPT_ANNOTATIONS),
         ),
         spec=pod_spec,
     )
@@ -156,6 +163,7 @@ def build_executor_pod_spec(
                 "namespace": namespace,
                 "spark-role": "executor",
             },
+            "annotations": dict(DO_NOT_DISRUPT_ANNOTATIONS),
         },
         "spec": {
             "containers": [
