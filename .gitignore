@@ -214,3 +214,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Personal agent instructions (referenced from AGENTS.md)
+PERSONAL.md
