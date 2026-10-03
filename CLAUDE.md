@@ -1,0 +1,1 @@
+Refer to ./AGENTS.md in this directory
