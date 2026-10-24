@@ -1,0 +1,35 @@
+[
+ {
+  "id": 0,
+  "status": "COMPLETED",
+  "description": "collect at notebook.py:21",
+  "planDescription": "== Physical Plan ==\nAdaptiveSparkPlan (10)\n+- == Final Plan ==\n   * HashAggregate (7)\n   +- AQEShuffleRead (6)\n      +- ShuffleQueryStage (5), Statistics(sizeInBytes=288.0 B, rowCount=12)\n         +- Exchange (4)\n            +- * HashAggregate (3)\n               +- * Project (2)\n                  +- * Range (1)\n+- == Initial Plan ==\n   HashAggregate (9)\n   +- Exchange (8)\n      +- HashAggregate (3)\n         +- Project (2)\n            +- Range (1)\n\n\n(1) Range [codegen id : 1]\nOutput [1]: [id#0L]\nArguments: Range (0, 200000, step=1, splits=Some(2))\n\n(2) Project [codegen id : 1]\nOutput [1]: [CASE WHEN ((id#0L % 10) = 0) THEN (id#0L % 50) ELSE 1 END AS k#2L]\nInput [1]: [id#0L]\n\n(3) HashAggregate [codegen id : 1]\nInput [1]: [k#2L]\nKeys [1]: [k#2L]\nFunctions [1]: [partial_count(1)]\nAggregate Attributes [1]: [count#11L]\nResults [2]: [k#2L, count#12L]\n\n(4) Exchange\nInput [2]: [k#2L, count#12L]\nArguments: hashpartitioning(k#2L, 8), ENSURE_REQUIREMENTS, [plan_id=25]\n\n(5) ShuffleQueryStage\nOutput [2]: [k#2L, count#12L]\nArguments: 0\n\n(6) AQEShuffleRead\nInput [2]: [k#2L, count#12L]\nArguments: coalesced\n\n(7) HashAggregate [codegen id : 2]\nInput [2]: [k#2L, count#12L]\nKeys [1]: [k#2L]\nFunctions [1]: [count(1)]\nAggregate Attributes [1]: [count(1)#7L]\nResults [2]: [k#2L, count(1)#7L AS n#8L]\n\n(8) Exchange\nInput [2]: [k#2L, count#12L]\nArguments: hashpartitioning(k#2L, 8), ENSURE_REQUIREMENTS, [plan_id=15]\n\n(9) HashAggregate\nInput [2]: [k#2L, count#12L]\nKeys [1]: [k#2L]\nFunctions [1]: [count(1)]\nAggregate Attributes [1]: [count(1)#7L]\nResults [2]: [k#2L, count(1)#7L AS n#8L]\n\n(10) AdaptiveSparkPlan\nOutput [2]: [k#2L, n#8L]\nArguments: isFinalPlan=true\n\n",
+  "submissionTime": "2026-10-24T03:31:48.429GMT",
+  "duration": 870,
+  "runningJobIds": [],
+  "successJobIds": [
+   0,
+   1
+  ],
+  "failedJobIds": [],
+  "nodes": [],
+  "edges": []
+ },
+ {
+  "id": 1,
+  "status": "COMPLETED",
+  "description": "collect at notebook.py:24",
+  "planDescription": "== Physical Plan ==\nAdaptiveSparkPlan (21)\n+- == Final Plan ==\n   * HashAggregate (14)\n   +- AQEShuffleRead (13)\n      +- ShuffleQueryStage (12), Statistics(sizeInBytes=288.0 B, rowCount=12)\n         +- Exchange (11)\n            +- * HashAggregate (10)\n               +- * Project (9)\n                  +- * BroadcastHashJoin Inner BuildRight (8)\n                     :- * Project (3)\n                     :  +- * Filter (2)\n                     :     +- * Range (1)\n                     +- BroadcastQueryStage (7), Statistics(sizeInBytes=1031.8 KiB, rowCount=1.00E+3)\n                        +- BroadcastExchange (6)\n                           +- * Project (5)\n                              +- * Range (4)\n+- == Initial Plan ==\n   HashAggregate (20)\n   +- Exchange (19)\n      +- HashAggregate (18)\n         +- Project (17)\n            +- BroadcastHashJoin Inner BuildRight (16)\n               :- Project (3)\n               :  +- Filter (2)\n               :     +- Range (1)\n               +- BroadcastExchange (15)\n                  +- Project (5)\n                     +- Range (4)\n\n\n(1) Range [codegen id : 2]\nOutput [1]: [id#0L]\nArguments: Range (0, 200000, step=1, splits=Some(2))\n\n(2) Filter [codegen id : 2]\nInput [1]: [id#0L]\nCondition : CASE WHEN ((id#0L % 10) = 0) THEN isnotnull((id#0L % 50)) ELSE true END\n\n(3) Project [codegen id : 2]\nOutput [1]: [CASE WHEN ((id#0L % 10) = 0) THEN (id#0L % 50) ELSE 1 END AS k#2L]\nInput [1]: [id#0L]\n\n(4) Range [codegen id : 1]\nOutput [1]: [id#13L]\nArguments: Range (0, 1000, step=1, splits=Some(2))\n\n(5) Project [codegen id : 1]\nOutput [1]: [id#13L AS k2#15L]\nInput [1]: [id#13L]\n\n(6) BroadcastExchange\nInput [1]: [k2#15L]\nArguments: HashedRelationBroadcastMode(List(input[0, bigint, false]),false), [plan_id=97]\n\n(7) BroadcastQueryStage\nOutput [1]: [k2#15L]\nArguments: 0\n\n(8) BroadcastHashJoin [codegen id : 2]\nLeft keys [1]: [k#2L]\nRight keys [1]: [k2#15L]\nJoin type: Inner\nJoin condition: None\n\n(9) Project [codegen id : 2]\nOutput [1]: [k2#15L]\nInput [2]: [k#2L, k2#15L]\n\n(10) HashAggregate [codegen id : 2]\nInput [1]: [k2#15L]\nKeys [1]: [k2#15L]\nFunctions [1]: [partial_count(1)]\nAggregate Attributes [1]: [count#30L]\nResults [2]: [k2#15L, count#31L]\n\n(11) Exchange\nInput [2]: [k2#15L, count#31L]\nArguments: hashpartitioning(k2#15L, 8), ENSURE_REQUIREMENTS, [plan_id=142]\n\n(12) ShuffleQueryStage\nOutput [2]: [k2#15L, count#31L]\nArguments: 1\n\n(13) AQEShuffleRead\nInput [2]: [k2#15L, count#31L]\nArguments: coalesced\n\n(14) HashAggregate [codegen id : 3]\nInput [2]: [k2#15L, count#31L]\nKeys [1]: [k2#15L]\nFunctions [1]: [count(1)]\nAggregate Attributes [1]: [count(1)#26L]\nResults [2]: [k2#15L, count(1)#26L AS count#27L]\n\n(15) BroadcastExchange\nInput [1]: [k2#15L]\nArguments: HashedRelationBroadcastMode(List(input[0, bigint, false]),false), [plan_id=72]\n\n(16) BroadcastHashJoin\nLeft keys [1]: [k#2L]\nRight keys [1]: [k2#15L]\nJoin type: Inner\nJoin condition: None\n\n(17) Project\nOutput [1]: [k2#15L]\nInput [2]: [k#2L, k2#15L]\n\n(18) HashAggregate\nInput [1]: [k2#15L]\nKeys [1]: [k2#15L]\nFunctions [1]: [partial_count(1)]\nAggregate Attributes [1]: [count#30L]\nResults [2]: [k2#15L, count#31L]\n\n(19) Exchange\nInput [2]: [k2#15L, count#31L]\nArguments: hashpartitioning(k2#15L, 8), ENSURE_REQUIREMENTS, [plan_id=77]\n\n(20) HashAggregate\nInput [2]: [k2#15L, count#31L]\nKeys [1]: [k2#15L]\nFunctions [1]: [count(1)]\nAggregate Attributes [1]: [count(1)#26L]\nResults [2]: [k2#15L, count(1)#26L AS count#27L]\n\n(21) AdaptiveSparkPlan\nOutput [2]: [k2#15L, count#27L]\nArguments: isFinalPlan=true\n\n",
+  "submissionTime": "2026-10-24T03:31:49.395GMT",
+  "duration": 419,
+  "runningJobIds": [],
+  "successJobIds": [
+   2,
+   3,
+   4
+  ],
+  "failedJobIds": [],
+  "nodes": [],
+  "edges": []
+ }
+]

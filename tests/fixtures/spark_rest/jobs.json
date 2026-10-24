@@ -1,0 +1,121 @@
+[
+ {
+  "jobId": 4,
+  "name": "collect at notebook.py:24",
+  "submissionTime": "2026-10-24T03:31:49.787GMT",
+  "completionTime": "2026-10-24T03:31:49.813GMT",
+  "stageIds": [
+   5,
+   6
+  ],
+  "jobTags": [],
+  "status": "SUCCEEDED",
+  "numTasks": 3,
+  "numActiveTasks": 0,
+  "numCompletedTasks": 1,
+  "numSkippedTasks": 2,
+  "numFailedTasks": 0,
+  "numKilledTasks": 0,
+  "numCompletedIndices": 1,
+  "numActiveStages": 0,
+  "numCompletedStages": 1,
+  "numSkippedStages": 1,
+  "numFailedStages": 0,
+  "killedTasksSummary": {}
+ },
+ {
+  "jobId": 3,
+  "name": "collect at notebook.py:24",
+  "submissionTime": "2026-10-24T03:31:49.601GMT",
+  "completionTime": "2026-10-24T03:31:49.759GMT",
+  "stageIds": [
+   4
+  ],
+  "jobTags": [],
+  "status": "SUCCEEDED",
+  "numTasks": 2,
+  "numActiveTasks": 0,
+  "numCompletedTasks": 2,
+  "numSkippedTasks": 0,
+  "numFailedTasks": 0,
+  "numKilledTasks": 0,
+  "numCompletedIndices": 2,
+  "numActiveStages": 0,
+  "numCompletedStages": 1,
+  "numSkippedStages": 0,
+  "numFailedStages": 0,
+  "killedTasksSummary": {}
+ },
+ {
+  "jobId": 2,
+  "name": "collect at notebook.py:24",
+  "submissionTime": "2026-10-24T03:31:49.414GMT",
+  "completionTime": "2026-10-24T03:31:49.458GMT",
+  "stageIds": [
+   3
+  ],
+  "jobTags": [
+   "broadcast exchange (runId f4b3d666-a43b-4cb5-803a-edae14e738c8)"
+  ],
+  "status": "SUCCEEDED",
+  "numTasks": 2,
+  "numActiveTasks": 0,
+  "numCompletedTasks": 2,
+  "numSkippedTasks": 0,
+  "numFailedTasks": 0,
+  "numKilledTasks": 0,
+  "numCompletedIndices": 2,
+  "numActiveStages": 0,
+  "numCompletedStages": 1,
+  "numSkippedStages": 0,
+  "numFailedStages": 0,
+  "killedTasksSummary": {}
+ },
+ {
+  "jobId": 1,
+  "name": "collect at notebook.py:21",
+  "submissionTime": "2026-10-24T03:31:49.199GMT",
+  "completionTime": "2026-10-24T03:31:49.286GMT",
+  "stageIds": [
+   1,
+   2
+  ],
+  "jobTags": [],
+  "status": "SUCCEEDED",
+  "numTasks": 3,
+  "numActiveTasks": 0,
+  "numCompletedTasks": 1,
+  "numSkippedTasks": 2,
+  "numFailedTasks": 0,
+  "numKilledTasks": 0,
+  "numCompletedIndices": 1,
+  "numActiveStages": 0,
+  "numCompletedStages": 1,
+  "numSkippedStages": 1,
+  "numFailedStages": 0,
+  "killedTasksSummary": {}
+ },
+ {
+  "jobId": 0,
+  "name": "collect at notebook.py:21",
+  "submissionTime": "2026-10-24T03:31:48.795GMT",
+  "completionTime": "2026-10-24T03:31:49.102GMT",
+  "stageIds": [
+   0
+  ],
+  "jobTags": [],
+  "status": "SUCCEEDED",
+  "numTasks": 2,
+  "numActiveTasks": 0,
+  "numCompletedTasks": 2,
+  "numSkippedTasks": 0,
+  "numFailedTasks": 0,
+  "numKilledTasks": 0,
+  "numCompletedIndices": 2,
+  "numActiveStages": 0,
+  "numCompletedStages": 1,
+  "numSkippedStages": 0,
+  "numFailedStages": 0,
+  "killedTasksSummary": {}
+ }
+]

@@ -1,0 +1,37 @@
+{
+ "runtime": {
+  "javaVersion": "17.0.20.1 (Eclipse Adoptium)",
+  "javaHome": "/opt/spark",
+  "scalaVersion": "version 2.12.18"
+ },
+ "sparkProperties": [
+  [
+   "spark.app.name",
+   "analysis-fixture"
+  ],
+  [
+   "spark.driver.host",
+   "driver-host"
+  ],
+  [
+   "spark.executor.id",
+   "driver"
+  ],
+  [
+   "spark.master",
+   "local[2]"
+  ],
+  [
+   "spark.sql.shuffle.partitions",
+   "8"
+  ],
+  [
+   "spark.hadoop.fs.s3a.bucket.data.access.key",
+   "*********(redacted)"
+  ],
+  [
+   "spark.sql.adaptive.enabled",
+   "true"
+  ]
+ ]
+}

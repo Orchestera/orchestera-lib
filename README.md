@@ -87,6 +87,45 @@ A missing file means the workspace has no connections and is not an error. A
 file that exists but cannot be parsed raises `ConnectionsError` rather than
 starting a session that would fail later with a confusing permission error.
 
+## Notebook job analysis
+
+`orchestera.notebook` analyses the Spark jobs a notebook just ran, in a cell,
+with one click per iteration of your code:
+
+```python
+from orchestera.notebook import analyze_spark_jobs, job_analysis_button
+
+analyze = job_analysis_button()
+analyze
+```
+
+```python
+analyze_spark_jobs(spark, run=analyze)
+```
+
+Each click covers the jobs that finished since the previous click. The output
+has a metrics table (wall/task/GC time, shuffle, spill, failures) compared with
+the previous iteration, and the model's verdict, ranked bottlenecks with
+job/stage/SQL ids, what changed since the last iteration, and the next changes
+to try. The previous analysis goes back to the model, so it can tell whether
+its advice was applied and helped. Pass `question="..."` to ask something
+specific, or `scope="all"` to analyse the whole session again.
+
+- **Metrics** come from the running driver's own Spark UI REST API (loopback
+  first, then `uiWebUrl`), not the History Server: s3a only uploads a
+  session's event log when the session stops. The model reads task lists,
+  task quantiles and full SQL plans of that application through tools. Spark
+  conf is allowlisted (SQL/shuffle/executor sizing); credentials never go out.
+- **Model and key** are the Marimo AI chat panel's: the workspace's BYOK key
+  and chat model, as the control plane writes them into `marimo.toml`, or
+  whatever the user set in Marimo's AI settings. This uses Marimo internals,
+  so the runtime image pins Marimo; the `notebook` extra carries the
+  dependencies.
+- The button keeps model calls explicit: re-running the session cell doesn't
+  start one. A failed call (no key, provider error) still shows the metrics
+  and leaves the jobs for the next click. Iterations live in the kernel, so a
+  restart starts over; `reset_job_analysis()` does the same.
+
 ## Minimal TUI
 
 Run from a local checkout:

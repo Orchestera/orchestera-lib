@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchestera-lib"
-version = "0.1.0a8"
+version = "0.1.0a9"
 description = "Orchestera Library"
 readme = "README.md"
 requires-python = ">=3.10.14"
@@ -20,6 +20,25 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["black", "isort", "pre-commit"]
+# orchestera.notebook. The runtime image pins both; job analysis uses
+# Marimo's AI config internals, so Marimo stays on one minor version.
+notebook = [
+    "marimo[mcp]>=0.24.2,<0.25",
+    "pydantic-ai-slim[anthropic,google,openai]>=2.51.0,<3",
+]
+
+# Installed by plain `uv sync` / `uv run`, so `make test` and `make release`
+# run the notebook tests too -- on the runtime image's exact versions.
+# pydantic-ai-slim leaves the provider SDKs unbounded, and anthropic 2.x
+# breaks its 2.51 Anthropic model (BetaMessageParam became a Union).
+[dependency-groups]
+dev = [
+    "marimo[mcp]==0.24.2",
+    "pydantic-ai-slim[anthropic,google,openai]==2.51.0",
+    "anthropic==1.9.0",
+    "openai==3.20.0",
+    "google-genai==2.25.0",
+]
 
 [project.scripts]
 orchestera-tui = "orchestera.tui.cli:main"
